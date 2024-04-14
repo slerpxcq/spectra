@@ -1,0 +1,52 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "spectra", "spectra.vcxproj", "{779FC6A4-E37E-4540-EC96-D01658F5ABA1}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "3rdparty", "3rdparty", "{A50437DB-91D2-2AE1-7A66-9B0766D30646}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "glad", "3rdparty\glad\glad.vcxproj", "{DD62977C-C999-980D-7286-7E105E9C140F}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "glfw", "3rdparty\glfw\glfw.vcxproj", "{9563977C-819A-980D-2A87-7E10169D140F}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "imgui", "3rdparty\imgui\imgui.vcxproj", "{0098A80F-6CAC-D0C0-352E-7420A101CDF1}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "pffft", "3rdparty\pffft\pffft.vcxproj", "{BB662310-277B-4BC1-F0FC-EE205CD047F2}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|x64 = Debug|x64
+		Release|x64 = Release|x64
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{779FC6A4-E37E-4540-EC96-D01658F5ABA1}.Debug|x64.ActiveCfg = Debug|x64
+		{779FC6A4-E37E-4540-EC96-D01658F5ABA1}.Debug|x64.Build.0 = Debug|x64
+		{779FC6A4-E37E-4540-EC96-D01658F5ABA1}.Release|x64.ActiveCfg = Release|x64
+		{779FC6A4-E37E-4540-EC96-D01658F5ABA1}.Release|x64.Build.0 = Release|x64
+		{DD62977C-C999-980D-7286-7E105E9C140F}.Debug|x64.ActiveCfg = Debug|x64
+		{DD62977C-C999-980D-7286-7E105E9C140F}.Debug|x64.Build.0 = Debug|x64
+		{DD62977C-C999-980D-7286-7E105E9C140F}.Release|x64.ActiveCfg = Release|x64
+		{DD62977C-C999-980D-7286-7E105E9C140F}.Release|x64.Build.0 = Release|x64
+		{9563977C-819A-980D-2A87-7E10169D140F}.Debug|x64.ActiveCfg = Debug|x64
+		{9563977C-819A-980D-2A87-7E10169D140F}.Debug|x64.Build.0 = Debug|x64
+		{9563977C-819A-980D-2A87-7E10169D140F}.Release|x64.ActiveCfg = Release|x64
+		{9563977C-819A-980D-2A87-7E10169D140F}.Release|x64.Build.0 = Release|x64
+		{0098A80F-6CAC-D0C0-352E-7420A101CDF1}.Debug|x64.ActiveCfg = Debug|x64
+		{0098A80F-6CAC-D0C0-352E-7420A101CDF1}.Debug|x64.Build.0 = Debug|x64
+		{0098A80F-6CAC-D0C0-352E-7420A101CDF1}.Release|x64.ActiveCfg = Release|x64
+		{0098A80F-6CAC-D0C0-352E-7420A101CDF1}.Release|x64.Build.0 = Release|x64
+		{BB662310-277B-4BC1-F0FC-EE205CD047F2}.Debug|x64.ActiveCfg = Debug|x64
+		{BB662310-277B-4BC1-F0FC-EE205CD047F2}.Debug|x64.Build.0 = Debug|x64
+		{BB662310-277B-4BC1-F0FC-EE205CD047F2}.Release|x64.ActiveCfg = Release|x64
+		{BB662310-277B-4BC1-F0FC-EE205CD047F2}.Release|x64.Build.0 = Release|x64
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{DD62977C-C999-980D-7286-7E105E9C140F} = {A50437DB-91D2-2AE1-7A66-9B0766D30646}
+		{9563977C-819A-980D-2A87-7E10169D140F} = {A50437DB-91D2-2AE1-7A66-9B0766D30646}
+		{0098A80F-6CAC-D0C0-352E-7420A101CDF1} = {A50437DB-91D2-2AE1-7A66-9B0766D30646}
+		{BB662310-277B-4BC1-F0FC-EE205CD047F2} = {A50437DB-91D2-2AE1-7A66-9B0766D30646}
+	EndGlobalSection
+EndGlobal
