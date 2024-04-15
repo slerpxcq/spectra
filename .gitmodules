@@ -10,3 +10,9 @@
 [submodule "3rdparty/pffft"]
 	path = 3rdparty/pffft
 	url = https://github.com/slerpxcq/pffft.git
+[submodule "3rdparty/implot"]
+	path = 3rdparty/implot
+	url = https://github.com/slerpxcq/implot.git
+[submodule "3rdparty/spline"]
+	path = 3rdparty/spline
+	url = https://github.com/slerpxcq/spline.git

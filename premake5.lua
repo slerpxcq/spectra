@@ -10,13 +10,16 @@ workspace "spectra"
     IncDir["glfw"] = "3rdparty/glfw/include"
     IncDir["glad"] = "3rdparty/glad/include"
     IncDir["imgui"] = "3rdparty/imgui"
+    IncDir["implot"] = "3rdparty/implot"
     IncDir["pffft"] = "3rdparty/pffft"
+    IncDir["spline"] = "3rdparty/spline/src"
 
     group "3rdparty"
     include "3rdparty/glfw"
     include "3rdparty/imgui"
     include "3rdparty/glad"
     include "3rdparty/pffft"
+    include "3rdparty/implot"
     group ""
 
     project "spectra"
@@ -31,6 +34,7 @@ workspace "spectra"
             "glfw",
             "imgui",
             "pffft",
+            "implot",
             "opengl32.lib"
         }
 
@@ -39,6 +43,8 @@ workspace "spectra"
             "%{IncDir.glad}",
             "%{IncDir.imgui}",
             "%{IncDir.pffft}",
+            "%{IncDir.implot}",
+            "%{IncDir.spline}",
             "src",
             "3rdparty/miniaudio"
         }

@@ -6,30 +6,31 @@
 #include <mutex>
 #include <condition_variable>
 #include <complex>
+#include <queue>
 
-/************************************** GL includes **************************************/
+
+// GL
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 
-/************************************** ImGui includes **************************************/
+// ImGui
 #include <imgui.h>
 #include <backends/imgui_impl_glfw.h>
 #include <backends/imgui_impl_opengl3.h>
 #include <implot.h>
 
-/************************************** PFFFT includes **************************************/
+// pffft
 #include <pffft.hpp>
 
 // spline
 //#include <spline.h>
 
-/************************************** miniaudio includes **************************************/
+// miniaudio
 #define MINIAUDIO_IMPLEMENTATION
 #include <miniaudio.h>
 #undef max
 #undef min
 
-// Does not work now
 //#define SP_USE_DOUBLE_PRECISION
 
 #ifdef SP_USE_DOUBLE_PRECISION
@@ -54,12 +55,10 @@
 #define SP_POW(x,y) std::pow(x,y)
 #endif
 
-/************************************** delta time utilities **************************************/
 #define SP_TIME_NOW() std::chrono::high_resolution_clock::now()
 #define SP_TIMEPOINT decltype(SP_TIME_NOW())
 #define SP_TIME_DELTA(x) (std::chrono::duration_cast<std::chrono::microseconds>(SP_TIME_NOW() - (x)).count() * 1e-6f)
 
-/************************************** ImVec2 operators **************************************/
 static inline ImVec2 operator+(const ImVec2& lhs, const ImVec2& rhs)
 {
     return ImVec2(lhs.x + rhs.x, lhs.y + rhs.y);
@@ -75,28 +74,28 @@ static inline ImVec2 operator-(const ImVec2& lhs, const ImVec2& rhs)
     return ImVec2(lhs.x - rhs.x, lhs.y - rhs.y);
 }
 
-/************************************** configurations **************************************/
 static constexpr uint32_t CHANNEL_COUNT = 2;
 static constexpr uint32_t SAMPLE_COUNT = 8192;
 static constexpr uint32_t FFT_RESULT_SIZE = SAMPLE_COUNT / 2;
 static constexpr uint32_t LEFT_CH = 0;
 static constexpr uint32_t RIGHT_CH = 1;
 
-/************************************** ring buffer **************************************/
+// Ring buffer
 static constexpr uint32_t BUFFER_CAPACITY = 2 * SAMPLE_COUNT;
 static SP_FLOAT sampleBuffer[CHANNEL_COUNT][BUFFER_CAPACITY];
 static std::mutex sampleBufferMutex;
 static uint32_t writePtr;
 static uint32_t readPtr;
 
-/************************************** sample ready signal **************************************/
 static std::mutex samplesReadyMutex;
 static std::condition_variable samplesReadyCondition;
 
-/************************************** drawing data **************************************/
+// [channel][values]
+static SP_FLOAT drawBuffer[CHANNEL_COUNT][SAMPLE_COUNT / 2];
 static std::mutex drawBufferMutex;
 static SP_FLOAT thresholds[CHANNEL_COUNT][FFT_RESULT_SIZE];
 static SP_FLOAT heights[CHANNEL_COUNT][FFT_RESULT_SIZE];
+//static ImVec2 points[CHANNEL_COUNT][FFT_RESULT_SIZE];
 
 static float resultOffset = 0.5f;
 static float resultScale = 0.03f;
@@ -184,12 +183,8 @@ void FFTWorker()
 
 int main(int argc, char** argv) 
 {
-	/************************************** statics **************************************/
-	static SP_FLOAT xs[FFT_RESULT_SIZE];
-    for (uint32_t i = 0; i < FFT_RESULT_SIZE; ++i)
-        xs[i] = i;
-
-	/************************************** miniaudio init **************************************/
+    /******************************* FFT init *******************************/ 
+    /******************************* miniaudio *******************************/ 
     ma_result result;
     ma_device_config deviceConfig;
     ma_device device;
@@ -203,13 +198,13 @@ int main(int argc, char** argv)
     result = ma_device_init(NULL, &deviceConfig, &device);
     assert(result == MA_SUCCESS);
 
-	/************************************** GL init **************************************/
+    /******************************* glfw *******************************/ 
+
     GLFWwindow* window = nullptr;
 
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-    glfwWindowHint( GLFW_DECORATED, GLFW_FALSE );
 
     if (!glfwInit())
         return -1;
@@ -225,7 +220,7 @@ int main(int argc, char** argv)
     int version = gladLoadGL();
     assert(version);
 
-	/************************************** ImGui init **************************************/
+    /******************************* imgui *******************************/ 
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImPlot::CreateContext();
@@ -237,29 +232,49 @@ int main(int argc, char** argv)
     ImGui_ImplGlfw_InitForOpenGL(window, true);
     ImGui_ImplOpenGL3_Init("#version 430");
 
-	/************************************** END init **************************************/
-    // Start audio device
     result = ma_device_start(&device);
     assert(result == MA_SUCCESS);
 
-    // Start FFT thread
-    std::thread fftThread = std::thread(FFTWorker);
+    auto fftThread = std::thread(FFTWorker);
     fftThread.detach();
 
     static SP_TIMEPOINT lastTime = SP_TIME_NOW();
     static constexpr float TIME_STEP = 1.f / 60;
 
+	static SP_FLOAT xs[FFT_RESULT_SIZE];
+    for (uint32_t i = 0; i < FFT_RESULT_SIZE; ++i)
+        xs[i] = i;
+
     while (!glfwWindowShouldClose(window)) {
+        // Rendering
         glfwPollEvents();
 
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
 
+        //ImGui::Begin("Control");
+        //ImGui::SliderFloat("Result offset", &resultOffset, 0.0f, 1.0f);
+        //ImGui::SliderFloat("Result scale", &resultScale, 0.01f, 0.05f);
+        //ImGui::SliderFloat("Fall speed", &fallSpeed, 0.01f, 0.2f);
+        //ImGui::End();
+
         ImGuiIO& io = ImGui::GetIO();
         ImGui::SetNextWindowPos(ImVec2(0, 0));
         ImGui::SetNextWindowSize(io.DisplaySize);
         ImGui::Begin("Draw", nullptr, ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoTitleBar);
+
+        ImDrawList* drawList = ImGui::GetWindowDrawList();
+        ImVec2 min = ImGui::GetWindowContentRegionMin();
+        ImVec2 max = ImGui::GetWindowContentRegionMax();
+        ImVec2 pos = ImGui::GetWindowPos();
+        ImVec2 origin = pos + min;
+        ImVec2 size = max - min;
+
+        static constexpr uint32_t colors[2] = {
+            IM_COL32(255, 0, 0, 128),
+            IM_COL32(0, 0, 255, 128)
+        };
 
         float deltaTime = SP_TIME_DELTA(lastTime);
 		lastTime = SP_TIME_NOW();
@@ -286,28 +301,16 @@ int main(int argc, char** argv)
             //std::vector<tk::spline> splines;
             //for (uint32_t i = 0; i < CHANNEL_COUNT; ++i)
             //    splines.emplace_back(xv, yvs[i]);
-
-			ImVec2 min = ImGui::GetWindowContentRegionMin();
-			ImVec2 max = ImGui::GetWindowContentRegionMax();
-			ImVec2 size = max - min;
                
-			ImPlot::PushStyleVar(ImPlotStyleVar_PlotPadding, ImVec2(0,0));
-            if (ImPlot::BeginPlot("FFT", size, ImPlotFlags_CanvasOnly)) {
-                // ImPlot::SetupAxes(nullptr, nullptr, ImPlotAxisFlags_NoDecorations, ImPlotAxisFlags_NoDecorations);
-                //ImPlot::SetupAxes(nullptr, nullptr, ImPlotAxisFlags_NoDecorations, ImPlotAxisFlags_NoDecorations);
-                ImPlot::SetupAxes(nullptr, nullptr, ImPlotAxisFlags_NoTickLabels, ImPlotAxisFlags_NoTickLabels);
+            if (ImPlot::BeginPlot("FFT", size, ImPlotFlags_CanvasOnly) {
                 ImPlot::SetupAxisScale(ImAxis_X1, ImPlotScale_Log10);
                 ImPlot::SetupAxisScale(ImAxis_Y1, ImPlotScale_Log10);
                 ImPlot::SetupAxesLimits(1, FFT_RESULT_SIZE, 0.001, 100, ImPlotCond_Always);
-				ImPlot::PushStyleVar(ImPlotStyleVar_FillAlpha, 0.5f);
                 //ImPlot::SetupAxesLimits(1, FFT_RESULT_SIZE, -1, 20, ImPlotCond_Always);
                 ImPlot::PlotShaded("L", xs, heights[LEFT_CH], FFT_RESULT_SIZE);
                 ImPlot::PlotShaded("R", xs, heights[RIGHT_CH], FFT_RESULT_SIZE);
-                ImPlot::PlotLine("L", xs, heights[LEFT_CH], FFT_RESULT_SIZE);
-                ImPlot::PlotLine("R", xs, heights[RIGHT_CH], FFT_RESULT_SIZE);
                 ImPlot::EndPlot();
             }
-            ImPlot::PopStyleVar();
         }
 
         ImGui::End();
