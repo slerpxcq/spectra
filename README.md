@@ -1,6 +1,12 @@
 # spectra
 ---
-A real-time music visualizer
+A trivial real-time music visualizer with no fancy decorations. 
+
+## Build
+Windows (VS2022)
+```
+gen.bat
+```
 
 ## References
 Implementing Fast Fourier Transform Algorithms of
