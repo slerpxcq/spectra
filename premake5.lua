@@ -18,8 +18,15 @@ workspace "spectra"
     include "3rdparty/glfw"
     include "3rdparty/imgui"
     include "3rdparty/glad"
-    include "3rdparty/pffft"
     include "3rdparty/implot"
+	externalproject "pffft"
+		location "3rdparty/pffft/build/"
+		kind "StaticLib"
+		language "C++"
+		configmap {
+            ["Debug"] = "Debug",
+            ["Release"] = "MinSizeRel"
+        }
     group ""
 
     project "spectra"
@@ -55,7 +62,6 @@ workspace "spectra"
         }
 
         filter "system:windows"
-            staticruntime "on"
             systemversion "latest"
 
         filter "configurations:Debug"

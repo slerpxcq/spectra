@@ -61,7 +61,6 @@
       <AdditionalIncludeDirectories>3rdparty\glfw\include;3rdparty\glad\include;3rdparty\imgui;3rdparty\pffft;3rdparty\implot;3rdparty\spline\src;src;3rdparty\miniaudio;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <DebugInformationFormat>EditAndContinue</DebugInformationFormat>
       <Optimization>Disabled</Optimization>
-      <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <ExternalWarningLevel>Level3</ExternalWarningLevel>
     </ClCompile>
@@ -81,7 +80,6 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <MinimalRebuild>false</MinimalRebuild>
       <StringPooling>true</StringPooling>
-      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <ExternalWarningLevel>Level3</ExternalWarningLevel>
     </ClCompile>
@@ -105,7 +103,7 @@
     <ProjectReference Include="3rdparty\imgui\imgui.vcxproj">
       <Project>{0098A80F-6CAC-D0C0-352E-7420A101CDF1}</Project>
     </ProjectReference>
-    <ProjectReference Include="3rdparty\pffft\pffft.vcxproj">
+    <ProjectReference Include="3rdparty\pffft\build\pffft.vcxproj">
       <Project>{BB662310-277B-4BC1-F0FC-EE205CD047F2}</Project>
     </ProjectReference>
     <ProjectReference Include="3rdparty\implot\implot.vcxproj">

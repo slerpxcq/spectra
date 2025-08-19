@@ -1,6 +1,8 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
+VisualStudioVersion = 17.0.32126.317
+MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "spectra", "spectra.vcxproj", "{779FC6A4-E37E-4540-EC96-D01658F5ABA1}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "3rdparty", "3rdparty", "{A50437DB-91D2-2AE1-7A66-9B0766D30646}"
@@ -13,7 +15,7 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "imgui", "3rdparty\imgui\img
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "implot", "3rdparty\implot\implot.vcxproj", "{5A62C004-4604-EBDA-2FBF-FE2E1B00722B}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "pffft", "3rdparty\pffft\pffft.vcxproj", "{BB662310-277B-4BC1-F0FC-EE205CD047F2}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "PFFFT", "3rdparty\pffft\build\pffft.vcxproj", "{382C3F32-1045-37B1-BF57-620715BC153E}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -41,10 +43,10 @@ Global
 		{5A62C004-4604-EBDA-2FBF-FE2E1B00722B}.Debug|x64.Build.0 = Debug|x64
 		{5A62C004-4604-EBDA-2FBF-FE2E1B00722B}.Release|x64.ActiveCfg = Release|x64
 		{5A62C004-4604-EBDA-2FBF-FE2E1B00722B}.Release|x64.Build.0 = Release|x64
-		{BB662310-277B-4BC1-F0FC-EE205CD047F2}.Debug|x64.ActiveCfg = Debug|x64
-		{BB662310-277B-4BC1-F0FC-EE205CD047F2}.Debug|x64.Build.0 = Debug|x64
-		{BB662310-277B-4BC1-F0FC-EE205CD047F2}.Release|x64.ActiveCfg = Release|x64
-		{BB662310-277B-4BC1-F0FC-EE205CD047F2}.Release|x64.Build.0 = Release|x64
+		{382C3F32-1045-37B1-BF57-620715BC153E}.Debug|x64.ActiveCfg = Debug|x64
+		{382C3F32-1045-37B1-BF57-620715BC153E}.Debug|x64.Build.0 = Debug|x64
+		{382C3F32-1045-37B1-BF57-620715BC153E}.Release|x64.ActiveCfg = MinSizeRel|x64
+		{382C3F32-1045-37B1-BF57-620715BC153E}.Release|x64.Build.0 = MinSizeRel|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -54,6 +56,9 @@ Global
 		{9563977C-819A-980D-2A87-7E10169D140F} = {A50437DB-91D2-2AE1-7A66-9B0766D30646}
 		{0098A80F-6CAC-D0C0-352E-7420A101CDF1} = {A50437DB-91D2-2AE1-7A66-9B0766D30646}
 		{5A62C004-4604-EBDA-2FBF-FE2E1B00722B} = {A50437DB-91D2-2AE1-7A66-9B0766D30646}
-		{BB662310-277B-4BC1-F0FC-EE205CD047F2} = {A50437DB-91D2-2AE1-7A66-9B0766D30646}
+		{382C3F32-1045-37B1-BF57-620715BC153E} = {A50437DB-91D2-2AE1-7A66-9B0766D30646}
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {56166201-D0AB-4967-9EF1-31C1CC9E6211}
 	EndGlobalSection
 EndGlobal
