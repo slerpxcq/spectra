@@ -1,5 +1,4 @@
 # spectra
----
 A trivial real-time music visualizer with no fancy decorations. 
 
 ## Build

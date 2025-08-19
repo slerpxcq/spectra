@@ -25,7 +25,7 @@ workspace "spectra"
 		language "C++"
 		configmap {
             ["Debug"] = "Debug",
-            ["Release"] = "MinSizeRel"
+            ["Release"] = "Release"
         }
     group ""
 
@@ -60,6 +60,10 @@ workspace "spectra"
             "src/**.cpp",
             "src/**.hpp"
         }
+		
+		defines {
+			--"SP_USE_DOUBLE_PRECISION"
+		}
 
         filter "system:windows"
             systemversion "latest"

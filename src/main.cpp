@@ -1,12 +1,3 @@
-#include <iostream>
-#include <cassert>
-#include <chrono>
-#include <algorithm>
-#include <thread>
-#include <mutex>
-#include <condition_variable>
-#include <complex>
-
 /************************************** GL includes **************************************/
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
@@ -18,7 +9,13 @@
 #include <implot.h>
 
 /************************************** PFFFT includes **************************************/
+#ifdef SP_USE_DOUBLE_PRECISION
+#define PFFFT_ENABLE_DOUBLE
+#endif
 #include <pffft.hpp>
+#ifdef PFFFT_ENABLE_DOUBLE
+#undef PFFFT_ENABLE_DOUBLE
+#endif
 
 // spline
 //#include <spline.h>
@@ -26,11 +23,19 @@
 /************************************** miniaudio includes **************************************/
 #define MINIAUDIO_IMPLEMENTATION
 #include <miniaudio.h>
+#undef MINIAUDIO_IMPLEMENTATION
 #undef max
 #undef min
 
-// Does not work now
-//#define SP_USE_DOUBLE_PRECISION
+/************************************** stdlib includes **************************************/
+#include <iostream>
+#include <cassert>
+#include <chrono>
+#include <algorithm>
+#include <thread>
+#include <mutex>
+#include <condition_variable>
+#include <complex>
 
 #ifdef SP_USE_DOUBLE_PRECISION
 #define SP_FLOAT  double
@@ -46,18 +51,22 @@
 #define SP_ABS(x) std::fabsf(x)
 #define SP_EXP(x) std::expf(x)
 #define SP_POW(x,y) std::powf(x,y)
+#define SP_SIN(x) std::sinf(x)
+#define SP_COS(x) std::cosf(x)
 #else
 #define SP_LOG2(x) std::log2(x)
 #define SP_LOG(x) std::log(x)
 #define SP_ABS(x) std::fabs(x)
 #define SP_EXP(x) std::exp(x)
 #define SP_POW(x,y) std::pow(x,y)
+#define SP_SIN(x) std::sin(x)
+#define SP_COS(x) std::cos(x)
 #endif
 
 /************************************** delta time utilities **************************************/
 #define SP_TIME_NOW() std::chrono::high_resolution_clock::now()
 #define SP_TIMEPOINT decltype(SP_TIME_NOW())
-#define SP_TIME_DELTA(x) (std::chrono::duration_cast<std::chrono::microseconds>(SP_TIME_NOW() - (x)).count() * 1e-6f)
+#define SP_TIME_DELTA(x) (std::chrono::duration_cast<std::chrono::microseconds>(SP_TIME_NOW() - (x)).count() * 1e-6)
 
 /************************************** ImVec2 operators **************************************/
 static inline ImVec2 operator+(const ImVec2& lhs, const ImVec2& rhs)
@@ -98,11 +107,11 @@ static std::mutex drawBufferMutex;
 static SP_FLOAT thresholds[CHANNEL_COUNT][FFT_RESULT_SIZE];
 static SP_FLOAT heights[CHANNEL_COUNT][FFT_RESULT_SIZE];
 
-static float resultOffset = 0.5f;
-static float resultScale = 0.03f;
-static float fallSpeed = 0.1f;
+static SP_FLOAT resultOffset = 0.5;
+static SP_FLOAT resultScale = 0.03;
+static SP_FLOAT fallSpeed = 0.1;
 
-void SamplesReadyCallback(ma_device* pDevice, void* pOutput, const void* pInput, ma_uint32 frameCount)
+static void SamplesReadyCallback(ma_device* pDevice, void* pOutput, const void* pInput, ma_uint32 frameCount)
 {
     (void)pOutput;
 
@@ -119,7 +128,7 @@ void SamplesReadyCallback(ma_device* pDevice, void* pOutput, const void* pInput,
 	samplesReadyCondition.notify_all();
 }
 
-void GenBlackmanHarrisWindow(SP_FLOAT* dst)
+static void GenBlackmanHarrisWindow(SP_FLOAT* dst)
 {
     static constexpr SP_FLOAT a0 = 0.355768f;
     static constexpr SP_FLOAT a1 = 0.487396f;
@@ -129,21 +138,23 @@ void GenBlackmanHarrisWindow(SP_FLOAT* dst)
     static SP_FLOAT N = SAMPLE_COUNT;
 
     for (uint32_t i = 0; i < N; ++i) {
-        dst[i] = a0 - a1 * std::cosf(2 * PI * i / N) + a2 * std::cosf(4 * PI * i / N)
-            - a3 * std::cosf(6 * PI * i / N);
+        dst[i] = a0 
+            - a1 * SP_COS(2 * PI * i / N) 
+            + a2 * SP_COS(4 * PI * i / N)
+            - a3 * SP_COS(6 * PI * i / N);
     }
 }
 
-SP_FLOAT FastMag(const std::complex<SP_FLOAT>& c)
+static SP_FLOAT FastMag(const std::complex<SP_FLOAT>& c)
 {
-	float absRe = SP_ABS(c.real());
-    float absIm = SP_ABS(c.imag());
-	float max = std::max(absRe, absIm);
-	float min = std::min(absRe, absIm);
+	SP_FLOAT absRe = SP_ABS(c.real());
+    SP_FLOAT absIm = SP_ABS(c.imag());
+	SP_FLOAT max = std::max(absRe, absIm);
+	SP_FLOAT min = std::min(absRe, absIm);
 	return max + 3 * min / 8;
 }
 
-void FFTWorker()
+static void FFTWorker()
 {
 	static pffft::Fft<SP_FLOAT> fftInstance(SAMPLE_COUNT);
     static SP_FLOAT window[SAMPLE_COUNT];
@@ -187,7 +198,7 @@ int main(int argc, char** argv)
 	/************************************** statics **************************************/
 	static SP_FLOAT xs[FFT_RESULT_SIZE];
     for (uint32_t i = 0; i < FFT_RESULT_SIZE; ++i)
-        xs[i] = i;
+        xs[i] = static_cast<SP_FLOAT>(i);
 
 	/************************************** miniaudio init **************************************/
     ma_result result;
@@ -261,18 +272,17 @@ int main(int argc, char** argv)
         ImGui::SetNextWindowSize(io.DisplaySize);
         ImGui::Begin("Draw", nullptr, ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoTitleBar);
 
-        float deltaTime = SP_TIME_DELTA(lastTime);
+        SP_FLOAT deltaTime = SP_TIME_DELTA(lastTime);
 		lastTime = SP_TIME_NOW();
 
         {
 			std::lock_guard lock(drawBufferMutex);
-			static float acc;
+			static SP_FLOAT acc;
 			acc += deltaTime;
 			while (acc >= TIME_STEP) {
 				for (uint32_t channel = 0; channel < CHANNEL_COUNT; ++channel) {
-					for (uint32_t i = 0; i < FFT_RESULT_SIZE; ++i) {
+					for (uint32_t i = 0; i < FFT_RESULT_SIZE; ++i) 
 						thresholds[channel][i] /= std::max(SP_EXP(thresholds[channel][i]), SP_FLOAT(1.01));
-					}
 				}
 				acc -= TIME_STEP;
 			}
@@ -294,13 +304,13 @@ int main(int argc, char** argv)
 			ImPlot::PushStyleVar(ImPlotStyleVar_PlotPadding, ImVec2(0,0));
             if (ImPlot::BeginPlot("FFT", size, ImPlotFlags_CanvasOnly)) {
                 // ImPlot::SetupAxes(nullptr, nullptr, ImPlotAxisFlags_NoDecorations, ImPlotAxisFlags_NoDecorations);
-                //ImPlot::SetupAxes(nullptr, nullptr, ImPlotAxisFlags_NoDecorations, ImPlotAxisFlags_NoDecorations);
+                // ImPlot::SetupAxes(nullptr, nullptr, ImPlotAxisFlags_NoDecorations, ImPlotAxisFlags_NoDecorations);
                 ImPlot::SetupAxes(nullptr, nullptr, ImPlotAxisFlags_NoTickLabels, ImPlotAxisFlags_NoTickLabels);
                 ImPlot::SetupAxisScale(ImAxis_X1, ImPlotScale_Log10);
                 ImPlot::SetupAxisScale(ImAxis_Y1, ImPlotScale_Log10);
                 ImPlot::SetupAxesLimits(1, FFT_RESULT_SIZE, 0.001, 100, ImPlotCond_Always);
 				ImPlot::PushStyleVar(ImPlotStyleVar_FillAlpha, 0.5f);
-                //ImPlot::SetupAxesLimits(1, FFT_RESULT_SIZE, -1, 20, ImPlotCond_Always);
+                // ImPlot::SetupAxesLimits(1, FFT_RESULT_SIZE, -1, 20, ImPlotCond_Always);
                 ImPlot::PlotShaded("L", xs, heights[LEFT_CH], FFT_RESULT_SIZE);
                 ImPlot::PlotShaded("R", xs, heights[RIGHT_CH], FFT_RESULT_SIZE);
                 ImPlot::PlotLine("L", xs, heights[LEFT_CH], FFT_RESULT_SIZE);
