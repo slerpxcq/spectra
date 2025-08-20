@@ -62,7 +62,7 @@ workspace "spectra"
         }
 		
 		defines {
-			--"SP_USE_DOUBLE_PRECISION"
+			"SP_USE_DOUBLE_PRECISION"
 		}
 
         filter "system:windows"

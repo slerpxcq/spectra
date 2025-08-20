@@ -1,0 +1,22 @@
+#pragma once
+
+// https://www.gingerbill.org/article/2015/08/19/defer-in-cpp/
+template <typename F>
+struct Deferrer 
+{
+	F f;
+	Deferrer(F f) : f{ f } {}
+	~Deferrer() { f(); }
+};
+
+template <typename F>
+Deferrer<F> defer_func(F f) {
+	return Deferrer<F>(f);
+}
+
+#define DEFER_1(x, y) x##y
+#define DEFER_2(x, y) DEFER_1(x, y)
+#define DEFER_3(x)    DEFER_2(x, __COUNTER__)
+#define defer(code)   auto DEFER_3(_defer_) = defer_func([&](){code;})
+
+
