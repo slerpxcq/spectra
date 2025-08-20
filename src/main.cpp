@@ -26,7 +26,7 @@
 #undef max
 #undef min
 
-/************************************** stdlib includes **************************************/
+/************************************** std includes **************************************/
 #include <iostream>
 #include <cassert>
 #include <chrono>
@@ -35,10 +35,13 @@
 #include <mutex>
 #include <condition_variable>
 #include <complex>
+#include <vector>
+#include <array>
 
 #ifdef SP_USE_DOUBLE_PRECISION
 #define SP_FLOAT double
 #else 
+
 #define SP_FLOAT float
 #endif
 
@@ -83,64 +86,74 @@ static inline ImVec2 operator-(const ImVec2& lhs, const ImVec2& rhs)
     return ImVec2(lhs.x - rhs.x, lhs.y - rhs.y);
 }
 
-struct FFTInstance
-{
-};
-
 /************************************** configurations **************************************/
 static constexpr uint32_t CHANNEL_COUNT{ 2 };
-static constexpr uint32_t SAMPLE_COUNT{ 8192 };
-static constexpr uint32_t FFT_RESULT_SIZE{ SAMPLE_COUNT / 2 };
-enum Channel : uint32_t 
+static constexpr uint32_t DEFAULT_FFT_SIZE{ 8192 };
+static constexpr uint32_t DEFAULT_FFT_RESULT_SIZE{ DEFAULT_FFT_SIZE / 2 };
+enum Channel : uint32_t { LEFT_CH, RIGHT_CH };
+
+/************************************** synchronization objects **************************************/
+static std::mutex g_sampleBufferMutex{};
+static std::mutex g_samplesReadyMutex{};
+static std::condition_variable g_samplesReadyCondition{};
+static std::mutex g_drawBufferMutex{};
+
+struct Globals
 {
-    LEFT_CH, RIGHT_CH
+    // FFT 
+    uint32_t fftSize{ DEFAULT_FFT_SIZE };
+    uint32_t fftResultSize{ DEFAULT_FFT_SIZE / 2 };
+    uint32_t sampleBufferSize{ DEFAULT_FFT_SIZE  * 2}; 
+    pffft::Fft<SP_FLOAT> fft{ DEFAULT_FFT_SIZE };
+    std::vector<SP_FLOAT> fftWindow{ std::vector<SP_FLOAT>(DEFAULT_FFT_SIZE)};
+    std::array<std::vector<SP_FLOAT>, CHANNEL_COUNT> magnitudes
+		{ std::vector<SP_FLOAT>(fftResultSize), std::vector<SP_FLOAT>(fftResultSize) };
+
+    // Sampling
+    std::array<std::vector<SP_FLOAT>, CHANNEL_COUNT> sampleBuffer
+		{ std::vector<SP_FLOAT>(sampleBufferSize), std::vector<SP_FLOAT>(sampleBufferSize) }; 
+    uint32_t readPtr{}, writePtr{};
+
+    // Drawing
+    std::array<std::vector<SP_FLOAT>, CHANNEL_COUNT> thresholds
+		{ std::vector<SP_FLOAT>(fftResultSize), std::vector<SP_FLOAT>(fftResultSize) };
+    std::array<std::vector<SP_FLOAT>, CHANNEL_COUNT> heights
+		{ std::vector<SP_FLOAT>(fftResultSize), std::vector<SP_FLOAT>(fftResultSize) };
+    std::vector<SP_FLOAT> xs{ std::vector<SP_FLOAT>(fftResultSize) };
+
+	SP_FLOAT resultOffset{ 0.5 };
+	SP_FLOAT resultScale{ 0.03 };
+	SP_FLOAT fallSpeed{ 0.1 };
 };
 
-/************************************** ring buffer **************************************/
-static constexpr uint32_t BUFFER_CAPACITY{ 2 * SAMPLE_COUNT };
-static SP_FLOAT sampleBuffer[CHANNEL_COUNT][BUFFER_CAPACITY]{};
-static std::mutex sampleBufferMutex{};
-static uint32_t writePtr{};
-static uint32_t readPtr{};
-
-/************************************** sample ready signal **************************************/
-static std::mutex samplesReadyMutex{};
-static std::condition_variable samplesReadyCondition{};
-
-/************************************** drawing data **************************************/
-static std::mutex drawBufferMutex{};
-static SP_FLOAT thresholds[CHANNEL_COUNT][FFT_RESULT_SIZE]{};
-static SP_FLOAT heights[CHANNEL_COUNT][FFT_RESULT_SIZE]{};
-
-static SP_FLOAT resultOffset{ 0.5 };
-static SP_FLOAT resultScale{ 0.03 };
-static SP_FLOAT fallSpeed{ 0.1 };
+static Globals g{};
 
 static void SamplesReadyCallback(ma_device* pDevice, void* pOutput, const void* pInput, ma_uint32 frameCount)
 {
-    const float* inputs{ static_cast<const float*>(pInput) };
+    auto* inputs{ static_cast<const float*>(pInput) };
+
     {
-        std::lock_guard l(sampleBufferMutex);
-		for (uint32_t i{}; i < frameCount; ++i, ++writePtr) {
-			writePtr %= BUFFER_CAPACITY;
-			sampleBuffer[LEFT_CH][writePtr] = inputs[2 * i];
-			sampleBuffer[RIGHT_CH][writePtr] = inputs[2 * i + 1];
-		}
-		readPtr = ((int64_t)writePtr - SAMPLE_COUNT) % BUFFER_CAPACITY;
+        std::lock_guard l{ g_sampleBufferMutex };
+		for (uint32_t i{}; i < frameCount; ++i, ++g.writePtr) {
+			g.writePtr %= g.sampleBufferSize;
+			g.sampleBuffer[LEFT_CH][g.writePtr] = inputs[2 * i];
+			g.sampleBuffer[RIGHT_CH][g.writePtr] = inputs[2 * i + 1]; }
+		g.readPtr = ((int64_t)g.writePtr - g.fftSize) % g.sampleBufferSize;
     }
-	samplesReadyCondition.notify_all();
+
+	g_samplesReadyCondition.notify_all();
 }
 
-static void GenBlackmanHarrisWindow(SP_FLOAT* dst)
+static void GenBlackmanHarrisWindow(SP_FLOAT* dst, uint32_t size)
 {
     static constexpr SP_FLOAT a0{ 0.355768 };
     static constexpr SP_FLOAT a1{ 0.487396 };
     static constexpr SP_FLOAT a2{ 0.144232 };
     static constexpr SP_FLOAT a3{ 0.012604 };
     static constexpr SP_FLOAT PI{ 3.14159265359 };
-    static SP_FLOAT N{ SAMPLE_COUNT };
+    SP_FLOAT N{ static_cast<SP_FLOAT>(size) };
 
-    for (uint32_t i{}; i < N; ++i) {
+    for (uint32_t i{}; i < size; ++i) {
         dst[i] = a0 
             - a1 * SP_COS(2 * PI * i / N) 
             + a2 * SP_COS(4 * PI * i / N)
@@ -157,43 +170,65 @@ static SP_FLOAT FastMag(const std::complex<SP_FLOAT>& c)
 	return max + 3 * min / 8;
 }
 
+static void ConfigFFT(uint32_t size)
+{
+    g.fftSize = size;
+    g.fftResultSize = g.fftSize / 2;
+    g.fft = pffft::Fft<SP_FLOAT>{ static_cast<int32_t>(g.fftSize) };
+    g.fftWindow.resize(g.fftSize);
+    GenBlackmanHarrisWindow(g.fftWindow.data(), g.fftSize);
+
+    for (auto& m : g.magnitudes)
+        m.resize(g.fftResultSize);
+
+    g.sampleBufferSize = 2 * g.fftSize;
+
+    for (auto& b : g.sampleBuffer)
+        b.resize(g.sampleBufferSize);
+
+    g.readPtr = g.writePtr = 0;
+
+    for (auto& t : g.thresholds)
+        t.resize(g.fftResultSize);
+    
+    for (auto& h : g.heights)
+        h.resize(g.fftResultSize);
+
+    g.xs.resize(g.fftResultSize);
+    for (uint32_t i{}; i < g.fftResultSize; ++i)
+        g.xs[i] = static_cast<SP_FLOAT>(i);
+}
+
 static void FFTWorker()
 {
-    static pffft::Fft<SP_FLOAT> fft{ SAMPLE_COUNT };
-    static SP_FLOAT fftWindow[SAMPLE_COUNT]{};
-    auto fftIn = fft.valueVector();
-    auto fftOut = fft.spectrumVector();
-
-    static SP_FLOAT magnitudes[CHANNEL_COUNT][FFT_RESULT_SIZE]{};
-
-    GenBlackmanHarrisWindow(fftWindow);
+	auto fftIn{ g.fft.valueVector() };
+	auto fftOut{ g.fft.spectrumVector() };
 
     while (true) {
-        // Wait for samples
-        std::unique_lock lock(samplesReadyMutex);
-        samplesReadyCondition.wait(lock);
+        std::unique_lock lock{ g_samplesReadyMutex };
+        g_samplesReadyCondition.wait(lock);
 
         for (uint32_t channel{}; channel < CHANNEL_COUNT; ++channel) {
             {
-                std::lock_guard lock(sampleBufferMutex);
-                for (uint32_t i{}, rdptr{ readPtr }; i < SAMPLE_COUNT; ++i, ++rdptr) {
-					rdptr %= BUFFER_CAPACITY;
-					fftIn[i] = sampleBuffer[channel][rdptr] * fftWindow[i];
+                std::lock_guard lock{ g_sampleBufferMutex };
+                for (uint32_t i{}, rdptr{ g.readPtr }; i < g.fftSize; ++i, ++rdptr) {
+					rdptr %= g.sampleBufferSize;
+					fftIn[i] = g.sampleBuffer[channel][rdptr] * g.fftWindow[i];
 				}
             }
 
-			fft.forward(fftIn, fftOut);
+			g.fft.forward(fftIn, fftOut);
 
 			{
-				std::lock_guard lock(drawBufferMutex);
-				for (uint32_t i{}; i < FFT_RESULT_SIZE; ++i) {
+                std::lock_guard lock{ g_drawBufferMutex };
+				for (uint32_t i{}; i < g.fftResultSize; ++i) {
 #ifdef SP_USE_FAST_MAGNITUDE
                     SP_FLOAT mag{ FastMag(fftOut[i]) };
 #else
                     SP_FLOAT mag{ std::abs(fftOut[i]) };
 #endif
-                    heights[channel][i] = std::max(mag, thresholds[channel][i]);
-					thresholds[channel][i] = std::max(mag, thresholds[channel][i]);
+                    g.heights[channel][i] = std::max(mag, g.thresholds[channel][i]);
+					g.thresholds[channel][i] = std::max(mag, g.thresholds[channel][i]);
 				}
             }
         }
@@ -202,10 +237,9 @@ static void FFTWorker()
 
 int main(int argc, char** argv) 
 {
-	/************************************** statics **************************************/
-	static SP_FLOAT xs[FFT_RESULT_SIZE]{};
-    for (uint32_t i = 0; i < FFT_RESULT_SIZE; ++i)
-        xs[i] = static_cast<SP_FLOAT>(i);
+    GenBlackmanHarrisWindow(g.fftWindow.data(), g.fftWindow.size());
+    for (uint32_t i{}; i < g.fftResultSize; ++i)
+        g.xs[i] = static_cast<SP_FLOAT>(i);
 
 	/************************************** miniaudio init **************************************/
     ma_device_config deviceConfig{};
@@ -217,8 +251,9 @@ int main(int argc, char** argv)
     deviceConfig.sampleRate       = 44100;
     deviceConfig.dataCallback     = SamplesReadyCallback;
 
-    ma_result result{ ma_device_init(NULL, &deviceConfig, &device) };
+    ma_result result{ ma_device_init(nullptr, &deviceConfig, &device) };
     assert(result == MA_SUCCESS);
+    defer(ma_device_uninit(&device));
 
 	/************************************** GL init **************************************/
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
@@ -251,16 +286,18 @@ int main(int argc, char** argv)
 
     ImGui::StyleColorsDark();
     ImGui_ImplGlfw_InitForOpenGL(window, true);
-    ImGui_ImplOpenGL3_Init("#version 430");
+    ImGui_ImplOpenGL3_Init("#version 460");
 
 	/************************************** END init **************************************/
     // Start audio device
     result = ma_device_start(&device);
     assert(result == MA_SUCCESS);
-    defer(ma_device_uninit(&device));
+    defer(ma_device_stop(&device));
+
+    //ConfigFFT(DEFAULT_FFT_SIZE);
 
     // Start FFT thread
-    std::thread fftThread{ std::thread(FFTWorker) };
+    std::thread fftThread{ FFTWorker };
     fftThread.detach();
 
     static SP_TIMEPOINT lastTime{ SP_TIME_NOW() };
@@ -282,13 +319,13 @@ int main(int argc, char** argv)
 		lastTime = SP_TIME_NOW();
 
         {
-			std::lock_guard lock(drawBufferMutex);
+			std::lock_guard lock(g_drawBufferMutex);
 			static SP_FLOAT acc;
 			acc += deltaTime;
 			while (acc >= TIME_STEP) {
 				for (uint32_t channel{}; channel < CHANNEL_COUNT; ++channel) {
-					for (uint32_t i{}; i < FFT_RESULT_SIZE; ++i)
-						thresholds[channel][i] /= std::max(SP_EXP(thresholds[channel][i]), SP_FLOAT(1.01));
+					for (uint32_t i{}; i < g.fftResultSize; ++i)
+						g.thresholds[channel][i] /= std::max(SP_EXP(g.thresholds[channel][i]), SP_FLOAT(1.01));
 				}
 				acc -= TIME_STEP;
 			}
@@ -305,25 +342,46 @@ int main(int argc, char** argv)
 
             const auto min{ ImGui::GetWindowContentRegionMin() };
             const auto max{ ImGui::GetWindowContentRegionMax() };
-			const auto size = max - min;
-               
-			ImPlot::PushStyleVar(ImPlotStyleVar_PlotPadding, ImVec2(0,0));
-            if (ImPlot::BeginPlot("FFT", size, ImPlotFlags_CanvasOnly)) {
-                // ImPlot::SetupAxes(nullptr, nullptr, ImPlotAxisFlags_NoDecorations, ImPlotAxisFlags_NoDecorations);
-                // ImPlot::SetupAxes(nullptr, nullptr, ImPlotAxisFlags_NoDecorations, ImPlotAxisFlags_NoDecorations);
-                ImPlot::SetupAxes(nullptr, nullptr, ImPlotAxisFlags_NoTickLabels, ImPlotAxisFlags_NoTickLabels);
-                ImPlot::SetupAxisScale(ImAxis_X1, ImPlotScale_Log10);
-                ImPlot::SetupAxisScale(ImAxis_Y1, ImPlotScale_Log10);
-                ImPlot::SetupAxesLimits(1, FFT_RESULT_SIZE, 0.001, 100, ImPlotCond_Always);
-				ImPlot::PushStyleVar(ImPlotStyleVar_FillAlpha, 0.5f);
-                // ImPlot::SetupAxesLimits(1, FFT_RESULT_SIZE, -1, 20, ImPlotCond_Always);
-                ImPlot::PlotShaded("L", xs, heights[LEFT_CH], FFT_RESULT_SIZE);
-                ImPlot::PlotShaded("R", xs, heights[RIGHT_CH], FFT_RESULT_SIZE);
-                ImPlot::PlotLine("L", xs, heights[LEFT_CH], FFT_RESULT_SIZE);
-                ImPlot::PlotLine("R", xs, heights[RIGHT_CH], FFT_RESULT_SIZE);
-                ImPlot::EndPlot();
+		 	const auto size = max - min;
+                
+		 	ImPlot::PushStyleVar(ImPlotStyleVar_PlotPadding, ImVec2(0,0));
+             if (ImPlot::BeginPlot("FFT", size, ImPlotFlags_CanvasOnly)) {
+                 // ImPlot::SetupAxes(nullptr, nullptr, ImPlotAxisFlags_NoDecorations, ImPlotAxisFlags_NoDecorations);
+                 // ImPlot::SetupAxes(nullptr, nullptr, ImPlotAxisFlags_NoDecorations, ImPlotAxisFlags_NoDecorations);
+                 ImPlot::SetupAxes(nullptr, nullptr, ImPlotAxisFlags_NoTickLabels, ImPlotAxisFlags_NoTickLabels);
+                 ImPlot::SetupAxisScale(ImAxis_X1, ImPlotScale_Log10);
+                 ImPlot::SetupAxisScale(ImAxis_Y1, ImPlotScale_Log10);
+                 ImPlot::SetupAxesLimits(1, g.fftResultSize, 0.001, 100, ImPlotCond_Always);
+		 		ImPlot::PushStyleVar(ImPlotStyleVar_FillAlpha, 0.5f);
+                 // ImPlot::SetupAxesLimits(1, FFT_RESULT_SIZE, -1, 20, ImPlotCond_Always);
+                 ImPlot::PlotShaded("L", g.xs.data(), g.heights[LEFT_CH].data(), g.fftResultSize);
+                 ImPlot::PlotShaded("R", g.xs.data(), g.heights[RIGHT_CH].data(), g.fftResultSize);
+                 ImPlot::PlotLine("L", g.xs.data(), g.heights[LEFT_CH].data(), g.fftResultSize);
+                 ImPlot::PlotLine("R", g.xs.data(), g.heights[RIGHT_CH].data(), g.fftResultSize);
+                 ImPlot::EndPlot();
+             }
+             ImPlot::PopStyleVar();
+        }
+
+		static constexpr const char* fftSizes[] = 
+			{ "128", "256", "512", "1024", "2048", "4096", "8192", "16384"};
+
+        static uint32_t showConfig{};
+        if (ImGui::IsKeyPressed(ImGuiKey_C)) 
+            showConfig ^= 1;
+
+        if (showConfig) {
+            ImGui::Begin("Config");
+            ImGui::SeparatorText("FFT settings");
+            if (ImGui::BeginCombo("FFT size", std::to_string(g.fftSize).c_str())) {
+                for (uint32_t i{}; i < IM_ARRAYSIZE(fftSizes); ++i) {
+                    if (ImGui::Selectable(fftSizes[i])) 
+                        ConfigFFT(1u << (i + 7)); // 0->128, 2->256, etc.
+                }
+                ImGui::EndCombo();
             }
-            ImPlot::PopStyleVar();
+            ImGui::SeparatorText("Display settings");
+            ImGui::End();
         }
 
         ImGui::End();
