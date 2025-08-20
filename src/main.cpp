@@ -37,6 +37,7 @@
 #include <complex>
 #include <vector>
 #include <array>
+#include <memory>
 
 #ifdef SP_USE_DOUBLE_PRECISION
 #define SP_FLOAT double
@@ -88,6 +89,7 @@ static inline ImVec2 operator-(const ImVec2& lhs, const ImVec2& rhs)
 
 /************************************** configurations **************************************/
 static constexpr uint32_t CHANNEL_COUNT{ 2 };
+static constexpr uint32_t FFT_INSTANCE_COUNT{ 8 };
 static constexpr uint32_t DEFAULT_FFT_SIZE{ 8192 };
 static constexpr uint32_t DEFAULT_FFT_RESULT_SIZE{ DEFAULT_FFT_SIZE / 2 };
 enum Channel : uint32_t { LEFT_CH, RIGHT_CH };
@@ -95,16 +97,17 @@ enum Channel : uint32_t { LEFT_CH, RIGHT_CH };
 /************************************** synchronization objects **************************************/
 static std::mutex g_sampleBufferMutex{};
 static std::mutex g_samplesReadyMutex{};
-static std::condition_variable g_samplesReadyCondition{};
 static std::mutex g_drawBufferMutex{};
+static std::mutex g_fftBusyMutex{};
+static std::condition_variable g_samplesReadyCondition{};
 
 struct Globals
 {
-    // FFT 
     uint32_t fftSize{ DEFAULT_FFT_SIZE };
     uint32_t fftResultSize{ DEFAULT_FFT_SIZE / 2 };
-    uint32_t sampleBufferSize{ DEFAULT_FFT_SIZE  * 2}; 
-    pffft::Fft<SP_FLOAT> fft{ DEFAULT_FFT_SIZE };
+    uint32_t sampleBufferSize{ DEFAULT_FFT_SIZE * 2 }; 
+
+    std::unique_ptr<pffft::Fft<SP_FLOAT>> fft{ std::make_unique<pffft::Fft<SP_FLOAT>>(fftSize) };
     std::vector<SP_FLOAT> fftWindow{ std::vector<SP_FLOAT>(DEFAULT_FFT_SIZE)};
     std::array<std::vector<SP_FLOAT>, CHANNEL_COUNT> magnitudes
 		{ std::vector<SP_FLOAT>(fftResultSize), std::vector<SP_FLOAT>(fftResultSize) };
@@ -172,20 +175,22 @@ static SP_FLOAT FastMag(const std::complex<SP_FLOAT>& c)
 
 static void ConfigFFT(uint32_t size)
 {
+    assert(size >= 128 && size <= 16384);
+    std::scoped_lock l{ g_sampleBufferMutex, g_drawBufferMutex, g_fftBusyMutex };
+
     g.fftSize = size;
     g.fftResultSize = g.fftSize / 2;
-    g.fft = pffft::Fft<SP_FLOAT>{ static_cast<int32_t>(g.fftSize) };
+    g.sampleBufferSize = g.fftSize * 2;
+
+    g.fft = std::make_unique<pffft::Fft<SP_FLOAT>>(size);
     g.fftWindow.resize(g.fftSize);
     GenBlackmanHarrisWindow(g.fftWindow.data(), g.fftSize);
 
     for (auto& m : g.magnitudes)
         m.resize(g.fftResultSize);
 
-    g.sampleBufferSize = 2 * g.fftSize;
-
     for (auto& b : g.sampleBuffer)
         b.resize(g.sampleBufferSize);
-
     g.readPtr = g.writePtr = 0;
 
     for (auto& t : g.thresholds)
@@ -201,8 +206,8 @@ static void ConfigFFT(uint32_t size)
 
 static void FFTWorker()
 {
-	auto fftIn{ g.fft.valueVector() };
-	auto fftOut{ g.fft.spectrumVector() };
+	auto fftIn{ g.fft->valueVector() };
+	auto fftOut{ g.fft->spectrumVector() };
 
     while (true) {
         std::unique_lock lock{ g_samplesReadyMutex };
@@ -210,17 +215,20 @@ static void FFTWorker()
 
         for (uint32_t channel{}; channel < CHANNEL_COUNT; ++channel) {
             {
-                std::lock_guard lock{ g_sampleBufferMutex };
+                std::lock_guard l{ g_sampleBufferMutex };
                 for (uint32_t i{}, rdptr{ g.readPtr }; i < g.fftSize; ++i, ++rdptr) {
 					rdptr %= g.sampleBufferSize;
 					fftIn[i] = g.sampleBuffer[channel][rdptr] * g.fftWindow[i];
 				}
             }
 
-			g.fft.forward(fftIn, fftOut);
+            {
+                std::lock_guard l{ g_fftBusyMutex };
+                g.fft->forward(fftIn, fftOut);
+            }
 
 			{
-                std::lock_guard lock{ g_drawBufferMutex };
+                std::lock_guard l{ g_drawBufferMutex };
 				for (uint32_t i{}; i < g.fftResultSize; ++i) {
 #ifdef SP_USE_FAST_MAGNITUDE
                     SP_FLOAT mag{ FastMag(fftOut[i]) };
