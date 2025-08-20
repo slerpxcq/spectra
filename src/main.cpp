@@ -89,8 +89,7 @@ static inline ImVec2 operator-(const ImVec2& lhs, const ImVec2& rhs)
 
 /************************************** configurations **************************************/
 static constexpr uint32_t CHANNEL_COUNT{ 2 };
-static constexpr uint32_t FFT_INSTANCE_COUNT{ 8 };
-static constexpr uint32_t DEFAULT_FFT_SIZE{ 8192 };
+static constexpr uint32_t DEFAULT_FFT_SIZE{ 32768 };
 static constexpr uint32_t DEFAULT_FFT_RESULT_SIZE{ DEFAULT_FFT_SIZE / 2 };
 enum Channel : uint32_t { LEFT_CH, RIGHT_CH };
 
@@ -175,14 +174,14 @@ static SP_FLOAT FastMag(const std::complex<SP_FLOAT>& c)
 
 static void ConfigFFT(uint32_t size)
 {
-    assert(size >= 128 && size <= 16384);
+    assert(size >= 128 && size <= 32768);
     std::scoped_lock l{ g_sampleBufferMutex, g_drawBufferMutex, g_fftBusyMutex };
 
     g.fftSize = size;
     g.fftResultSize = g.fftSize / 2;
     g.sampleBufferSize = g.fftSize * 2;
 
-    g.fft = std::make_unique<pffft::Fft<SP_FLOAT>>(size);
+    g.fft.reset(new pffft::Fft<SP_FLOAT>{ static_cast<int32_t>(size) });
     g.fftWindow.resize(g.fftSize);
     GenBlackmanHarrisWindow(g.fftWindow.data(), g.fftSize);
 
@@ -372,10 +371,10 @@ int main(int argc, char** argv)
         }
 
 		static constexpr const char* fftSizes[] = 
-			{ "128", "256", "512", "1024", "2048", "4096", "8192", "16384"};
+			{ "128", "256", "512", "1024", "2048", "4096", "8192", "16384", "32768" };
 
         static uint32_t showConfig{};
-        if (ImGui::IsKeyPressed(ImGuiKey_C)) 
+        if (ImGui::IsMouseClicked(ImGuiMouseButton_Right)) 
             showConfig ^= 1;
 
         if (showConfig) {
