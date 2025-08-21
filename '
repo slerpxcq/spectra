@@ -16,6 +16,7 @@
 #ifdef SP_USE_F64
 #define PFFFT_ENABLE_DOUBLE
 #endif
+
 #include <pffft.hpp>
 
 /************************************** spline includes **************************************/
@@ -49,14 +50,6 @@
 #define SP_ARRAY_SIZE(x) (sizeof(x)/sizeof(x[0]))
 
 #ifdef SP_USE_F64
-#define SP_LOG2(x) std::log2(x)
-#define SP_LOG(x) std::log(x)
-#define SP_ABS(x) std::fabs(x)
-#define SP_EXP(x) std::exp(x)
-#define SP_POW(x,y) std::pow(x,y)
-#define SP_SIN(x) std::sin(x)
-#define SP_COS(x) std::cos(x)
-#else
 #define SP_LOG2(x) std::log2f(x)
 #define SP_LOG(x) std::logf(x)
 #define SP_ABS(x) std::fabsf(x)
@@ -64,6 +57,14 @@
 #define SP_POW(x,y) std::powf(x,y)
 #define SP_SIN(x) std::sinf(x)
 #define SP_COS(x) std::cosf(x)
+#else
+#define SP_LOG2(x) std::log2(x)
+#define SP_LOG(x) std::log(x)
+#define SP_ABS(x) std::fabs(x)
+#define SP_EXP(x) std::exp(x)
+#define SP_POW(x,y) std::pow(x,y)
+#define SP_SIN(x) std::sin(x)
+#define SP_COS(x) std::cos(x)
 #endif
 
 /************************************** delta time utilities **************************************/
@@ -244,10 +245,11 @@ static void FFTWorker()
 }
 
 #if SP_NO_CONSOLE
-int WinMain(HINSTANCE instance,
+void WinMain(HINSTANCE instance,
              HINSTANCE prevInstance,
-             LPSTR lpCmdLine,
+             LPTSTR lpCmdLine,
              int nShowCmd)
+{
 #else 
 int main(int argc, char** argv)
 #endif
@@ -277,13 +279,11 @@ int main(int argc, char** argv)
     glfwWindowHint( GLFW_DECORATED, GLFW_FALSE );
 
     if (!glfwInit())
-        return -1;
 
     GLFWwindow* window{ glfwCreateWindow(1920, 360, "Spectra", nullptr, nullptr) };
-
-    if (!window) 
-		return -1;
-
+    if (!window) {
+        glfwTerminate();
+    }
     defer(glfwTerminate());
 
     glfwMakeContextCurrent(window);
@@ -483,6 +483,4 @@ int main(int argc, char** argv)
 
         glfwSwapBuffers(window);
     }
-
-    return 0;
 }

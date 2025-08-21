@@ -30,7 +30,7 @@ workspace "spectra"
     group ""
 
     project "spectra"
-        kind "ConsoleApp"
+        kind "WindowedApp"
         language "C++"
         cppdialect "C++17"
         targetdir "bin/%{prj.name}/%{cfg.buildcfg}"
@@ -62,7 +62,8 @@ workspace "spectra"
         }
 		
 		defines {
-			"SP_USE_DOUBLE_PRECISION"
+			"SP_USE_F64",
+            "SP_NO_CONSOLE"
 		}
 
         filter "system:windows"
