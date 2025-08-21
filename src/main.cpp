@@ -123,8 +123,8 @@ struct Globals
 		{ std::vector<SP_FLOAT>(fftResultSize), std::vector<SP_FLOAT>(fftResultSize) };
     std::vector<SP_FLOAT> xs{ std::vector<SP_FLOAT>(fftResultSize) };
 
-	SP_FLOAT resultOffset{ 0.5 };
-	SP_FLOAT resultScale{ 0.03 };
+	SP_FLOAT resultOffset{};
+	SP_FLOAT resultScale{ 1.f };
 	SP_FLOAT fallSpeed{ 0.1 };
 };
 
@@ -325,6 +325,16 @@ int main(int argc, char** argv)
         SP_FLOAT deltaTime = SP_TIME_DELTA(lastTime);
 		lastTime = SP_TIME_NOW();
 
+		const auto min{ ImGui::GetWindowContentRegionMin() };
+		const auto max{ ImGui::GetWindowContentRegionMax() };
+		const auto size = max - min;
+
+		static auto colorL{ ImPlot::GetColormapColor(0) };
+		static auto colorR{ ImPlot::GetColormapColor(1) };
+		static float lineWidth{ 1.f };
+		static float shadeTransparency{ .5f };
+        static bool drawOrder{};
+
         {
 			std::lock_guard lock(g_drawBufferMutex);
 			static SP_FLOAT acc;
@@ -338,57 +348,102 @@ int main(int argc, char** argv)
 			}
 
             // spline
-            //std::vector<double> xv(xs, xs + SP_ARRAY_SIZE(xs));
-            //std::vector<std::vector<double>> yvs;
-            //for (uint32_t i = 0; i < CHANNEL_COUNT; ++i) 
-            //    yvs.push_back(std::vector<double>(heights[i], heights[i] + SP_ARRAY_SIZE(heights[i])));
-            //
-            //std::vector<tk::spline> splines;
-            //for (uint32_t i = 0; i < CHANNEL_COUNT; ++i)
-            //    splines.emplace_back(xv, yvs[i]);
+            // std::vector<double> xv(xs, xs + SP_ARRAY_SIZE(xs));
+            // std::vector<std::vector<double>> yvs;
+            // for (uint32_t i = 0; i < CHANNEL_COUNT; ++i) 
+            //     yvs.push_back(std::vector<double>(heights[i], heights[i] + SP_ARRAY_SIZE(heights[i])));
+            // 
+            // std::vector<tk::spline> splines;
+            // for (uint32_t i = 0; i < CHANNEL_COUNT; ++i)
+            //     splines.emplace_back(xv, yvs[i]);
 
-            const auto min{ ImGui::GetWindowContentRegionMin() };
-            const auto max{ ImGui::GetWindowContentRegionMax() };
-		 	const auto size = max - min;
-                
-		 	ImPlot::PushStyleVar(ImPlotStyleVar_PlotPadding, ImVec2(0,0));
+            // Post processing
+            // for (auto& h : g.heights) {
+            //     for (uint32_t i{}; i < h.size(); ++i) 
+            //         h[i] = h[i] * g.resultScale + g.resultOffset;
+            // }
+
+            // Plot    
+		 	 ImPlot::PushStyleVar(ImPlotStyleVar_PlotPadding, ImVec2(0, 0));
              if (ImPlot::BeginPlot("FFT", size, ImPlotFlags_CanvasOnly)) {
-                 // ImPlot::SetupAxes(nullptr, nullptr, ImPlotAxisFlags_NoDecorations, ImPlotAxisFlags_NoDecorations);
-                 // ImPlot::SetupAxes(nullptr, nullptr, ImPlotAxisFlags_NoDecorations, ImPlotAxisFlags_NoDecorations);
                  ImPlot::SetupAxes(nullptr, nullptr, ImPlotAxisFlags_NoTickLabels, ImPlotAxisFlags_NoTickLabels);
                  ImPlot::SetupAxisScale(ImAxis_X1, ImPlotScale_Log10);
                  ImPlot::SetupAxisScale(ImAxis_Y1, ImPlotScale_Log10);
                  ImPlot::SetupAxesLimits(1, g.fftResultSize, 0.001, 100, ImPlotCond_Always);
-		 		ImPlot::PushStyleVar(ImPlotStyleVar_FillAlpha, 0.5f);
-                 // ImPlot::SetupAxesLimits(1, FFT_RESULT_SIZE, -1, 20, ImPlotCond_Always);
-                 ImPlot::PlotShaded("L", g.xs.data(), g.heights[LEFT_CH].data(), g.fftResultSize);
-                 ImPlot::PlotShaded("R", g.xs.data(), g.heights[RIGHT_CH].data(), g.fftResultSize);
-                 ImPlot::PlotLine("L", g.xs.data(), g.heights[LEFT_CH].data(), g.fftResultSize);
-                 ImPlot::PlotLine("R", g.xs.data(), g.heights[RIGHT_CH].data(), g.fftResultSize);
-                 ImPlot::EndPlot();
+				 ImPlot::PushStyleVar(ImPlotStyleVar_FillAlpha, shadeTransparency);
+
+                 auto drawLeft = [&]() {
+                     ImPlot::PushStyleColor(ImPlotCol_Line, colorL);
+                     ImPlot::PushStyleColor(ImPlotCol_Fill, colorL);
+                     ImPlot::PlotShaded("L", g.xs.data(), g.heights[LEFT_CH].data(), g.fftResultSize);
+                     ImPlot::SetNextLineStyle(colorL, lineWidth);
+                     ImPlot::PlotLine("L", g.xs.data(), g.heights[LEFT_CH].data(), g.fftResultSize);
+                     ImPlot::PopStyleColor(2);
+                 };
+
+                 auto drawRight = [&]() {
+					 ImPlot::PushStyleColor(ImPlotCol_Line, colorR);
+					 ImPlot::PushStyleColor(ImPlotCol_Fill, colorR);
+					 ImPlot::PlotShaded("R", g.xs.data(), g.heights[RIGHT_CH].data(), g.fftResultSize);
+					 ImPlot::SetNextLineStyle(colorR, lineWidth);
+					 ImPlot::PlotLine("R", g.xs.data(), g.heights[RIGHT_CH].data(), g.fftResultSize);
+					 ImPlot::PopStyleColor(2);
+                 };
+
+                 if (drawOrder) {
+                     drawLeft();
+                     drawRight();
+                 } else {
+                     drawRight();
+                     drawLeft();
+                 }
              }
-             ImPlot::PopStyleVar();
-        }
+
+			 ImPlot::PopStyleVar();
+			 ImPlot::EndPlot();
+		}
 
 		static constexpr const char* fftSizes[] = 
 			{ "128", "256", "512", "1024", "2048", "4096", "8192", "16384", "32768" };
 
-        static uint32_t showConfig{};
-        if (ImGui::IsMouseClicked(ImGuiMouseButton_Right)) 
-            showConfig ^= 1;
+		static uint32_t showConfig{};
+		if (ImGui::IsMouseClicked(ImGuiMouseButton_Right)) 
+			showConfig ^= 1;
 
-        if (showConfig) {
-            ImGui::Begin("Config");
-            ImGui::SeparatorText("FFT settings");
-            if (ImGui::BeginCombo("FFT size", std::to_string(g.fftSize).c_str())) {
-                for (uint32_t i{}; i < IM_ARRAYSIZE(fftSizes); ++i) {
-                    if (ImGui::Selectable(fftSizes[i])) 
-                        ConfigFFT(1u << (i + 7)); // 0->128, 2->256, etc.
-                }
-                ImGui::EndCombo();
-            }
-            ImGui::SeparatorText("Display settings");
-            ImGui::End();
+		if (showConfig) {
+			ImGui::Begin("Config");
+			ImGui::SeparatorText("FFT settings");
+			if (ImGui::BeginCombo("FFT size", std::to_string(g.fftSize).c_str())) {
+				for (uint32_t i{}; i < IM_ARRAYSIZE(fftSizes); ++i) {
+					if (ImGui::Selectable(fftSizes[i]))
+						ConfigFFT(1u << (i + 7)); // 0->128, 2->256, etc.
+				}
+				ImGui::EndCombo();
+			}
+
+			ImGui::SeparatorText("Apperances");
+			ImGui::SliderFloat("Edge size", &lineWidth, 1.f, 10.f);
+			ImGui::SliderFloat("Shade transparency", &shadeTransparency, 0.f, 1.f);
+            ImGui::Checkbox("Swap channel draw order", &drawOrder);
+            ImGui::Separator();
+            static float offset{ static_cast<float>(g.resultOffset) };
+            ImGui::SliderFloat("Offset", &offset, .1f, 1.f);
+            g.resultOffset = offset;
+            static float scale{ static_cast<float>(g.resultScale) };
+            ImGui::SliderFloat("Scale", &scale, .01f, .1f);
+            g.resultScale = scale;
+            static float fallSpeed{ static_cast<float>(g.fallSpeed) };
+            ImGui::SliderFloat("Fall speed", &fallSpeed, .1f, 1.f);
+            g.fallSpeed = fallSpeed;
+			if (ImGui::TreeNode("Colors")) {
+				ImGui::PushItemWidth(200);
+				ImGui::ColorPicker3("Color L", &colorL.x);
+				ImGui::SameLine();
+				ImGui::ColorPicker3("Color R", &colorR.x);
+				ImGui::PopItemWidth();
+				ImGui::TreePop();
+			}
+			ImGui::End();
         }
 
         ImGui::End();
