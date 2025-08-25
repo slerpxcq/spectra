@@ -58,7 +58,7 @@
     <ClCompile>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
-      <PreprocessorDefinitions>SP_USE_F64;SP_NO_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>SP_USE_F64;SP_NO_CONSOLE;IMGUI_USER_CONFIG="ImGuiConfig.h";%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>3rdparty\glfw\include;3rdparty\glad\include;3rdparty\imgui;3rdparty\pffft;3rdparty\implot;3rdparty\spline\src;src;3rdparty\miniaudio;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <DebugInformationFormat>EditAndContinue</DebugInformationFormat>
       <Optimization>Disabled</Optimization>
@@ -75,7 +75,7 @@
     <ClCompile>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
-      <PreprocessorDefinitions>SP_USE_F64;SP_NO_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>SP_USE_F64;SP_NO_CONSOLE;IMGUI_USER_CONFIG="ImGuiConfig.h";%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>3rdparty\glfw\include;3rdparty\glad\include;3rdparty\imgui;3rdparty\pffft;3rdparty\implot;3rdparty\spline\src;src;3rdparty\miniaudio;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <Optimization>Full</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
@@ -93,7 +93,17 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="src\main.cpp" />
+    <ClInclude Include="src\Application.h" />
+    <ClInclude Include="src\Config.h" />
+    <ClInclude Include="src\FFTWindow.h" />
+    <ClInclude Include="src\ImGuiConfig.h" />
+    <ClInclude Include="src\ThreadSafeScoped.h" />
+    <ClInclude Include="src\Utils.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\Application.cpp" />
+    <ClCompile Include="src\FFTWindow.cpp" />
+    <ClCompile Include="src\Compile\miniaudio_compile.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="3rdparty\glad\glad.vcxproj">

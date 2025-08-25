@@ -58,12 +58,14 @@ workspace "spectra"
 
         files { 
             "src/**.cpp",
-            "src/**.hpp"
+            "src/**.h"
         }
 		
 		defines {
 			"SP_USE_F64",
-            "SP_NO_CONSOLE"
+            -- "SP_ENALBE_INTERPOLATION",
+            "SP_NO_CONSOLE",
+			"IMGUI_USER_CONFIG=\"ImGuiConfig.h\""
 		}
 
         filter "system:windows"
