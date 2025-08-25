@@ -49,10 +49,7 @@ void Application::FFTWorker(Application* app)
 				}
             }
 
-            {
-                std::lock_guard l{ app->fftBusyMutex };
-                app->fftInstance->forward(fftIn, fftOut);
-            }
+			app->fftInstance->forward(fftIn, fftOut);
 
 			{
                 std::lock_guard l{ app->drawBufferMutex };
@@ -326,7 +323,7 @@ void Application::ResetFFT(uint32_t fftSize, WindowType windowType)
 	fftResultSize = fftSize / 2;
 	sampleBufferSize = fftSize * 2;
 
-	fftInstance = std::make_unique<pffft::Fft<SP_FLOAT>>(fftSize);
+	fftInstance = std::make_unique<FFTInstance>(static_cast<int>(fftSize));
 	fftWindow = std::vector<SP_FLOAT>(fftSize);
 	magnitudes = { std::vector<SP_FLOAT>(fftSize), std::vector<SP_FLOAT>(fftSize) };
 	sampleBuffer = { std::vector<SP_FLOAT>(sampleBufferSize), std::vector<SP_FLOAT>(sampleBufferSize) };

@@ -53,7 +53,7 @@ private:
     uint32_t readPtr{};
     uint32_t writePtr{};
 
-    std::unique_ptr<FFTInstance>                     fftInstance{}; // Use of stack will cause random memory issues
+    std::unique_ptr<FFTInstance>                     fftInstance{};
     std::vector<SP_FLOAT>                            fftWindow{};
     std::array<std::vector<SP_FLOAT>, CHANNEL_COUNT> magnitudes{};
     std::array<std::vector<SP_FLOAT>, CHANNEL_COUNT> sampleBuffer{};
