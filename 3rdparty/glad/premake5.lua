@@ -1,6 +1,7 @@
 project "glad"
 	kind "StaticLib"
 	language "C"
+    staticruntime "on"
 
     targetdir "%{wks.location}/bin/%{prj.name}/%{cfg.buildcfg}"
     objdir "%{wks.location}/obj/%{prj.name}/%{cfg.buildcfg}"

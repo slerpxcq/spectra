@@ -12,20 +12,27 @@
 #include <implot.h>
 
 #include <functional>
+#include <chrono>
+
+#include <iostream>
 
 void Application::AudioDataCallback(ma_device* pDevice, void* pOutput, const void* pInput, ma_uint32 frameCount)
 {
-    const auto samples{ static_cast<const float*>(pInput) };
+	const auto samples{ static_cast<const float*>(pInput) };
 	auto app{ static_cast<Application*>(pDevice->pUserData) };
 
     {
-        std::lock_guard lock{ app->sampleBufferMutex };
+        std::lock_guard l{ app->sampleBufferMutex };
 		for (uint32_t i{}; i < frameCount; ++i, ++app->writePtr) {
 			app->writePtr %= app->sampleBufferSize;
 			app->sampleBuffer[CHANNEL_LEFT][app->writePtr] = samples[2 * i];
 			app->sampleBuffer[CHANNEL_RIGHT][app->writePtr] = samples[2 * i + 1]; 
         }
-		app->readPtr = ((int64_t)app->writePtr - app->fftSize) % app->sampleBufferSize;
+
+		auto readPtr{ static_cast<int64_t>(app->writePtr) - frameCount };
+		if (readPtr < 0) 
+			readPtr += app->sampleBufferSize;
+		app->readPtr = readPtr;
     }
 
 	app->sampleAvailCond.notify_all();
@@ -49,7 +56,10 @@ void Application::FFTWorker(Application* app)
 				}
             }
 
-			app->fftInstance->forward(fftIn, fftOut);
+			{
+				std::lock_guard l{ app->fftBusyMutex };
+				app->fftInstance->forward(fftIn, fftOut);
+			}
 
 			{
                 std::lock_guard l{ app->drawBufferMutex };
@@ -261,10 +271,12 @@ void Application::InitAudioDevice()
 	deviceConfig.dataCallback     = AudioDataCallback;
 	deviceConfig.pUserData        = this;
 
-	if (auto result{ ma_device_init(nullptr, &deviceConfig, &audioDevice) }; result != MA_SUCCESS)
+	if (ma_device_init(nullptr, &deviceConfig, &audioDevice) != MA_SUCCESS)
 		throw std::runtime_error{ "Could not initialize audio device\n" };
 
-	if (auto result{ ma_device_start(&audioDevice) }; result != MA_SUCCESS) 
+	std::cout << audioDevice.capture.name << '\n';
+
+	if (ma_device_start(&audioDevice) != MA_SUCCESS) 
 		throw std::runtime_error{ "Could not start audio device\n" };
 }
 

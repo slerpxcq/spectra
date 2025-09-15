@@ -39,7 +39,7 @@ public:
     void ImGuiEndFrame();
 
     void ResetFFT(uint32_t fftSize, WindowType windowType = WindowType::BLACKMAN_HARRIS);
-    void CreateWindow(std::initializer_list<WindowHint> hints, bool vsync = false);
+    void CreateWindow(std::initializer_list<WindowHint> hints, bool vsync = true);
 
 private: 
     static void AudioDataCallback(ma_device* pDevice, void* pOutput, const void* pInput, ma_uint32 frameCount);
@@ -74,6 +74,7 @@ private:
 	std::condition_variable sampleAvailCond{};
 
     GLFWwindow* window{};
+
     ma_device   audioDevice{};
 
     std::thread fftThread{};

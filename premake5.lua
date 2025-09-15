@@ -30,11 +30,13 @@ workspace "spectra"
     group ""
 
     project "spectra"
-        kind "WindowedApp"
+        -- kind "WindowedApp"
+        kind "ConsoleApp"
         language "C++"
         cppdialect "C++17"
         targetdir "bin/%{prj.name}/%{cfg.buildcfg}"
         objdir "obj/%{prj.name}/%{cfg.buildcfg}"
+        staticruntime "on"
 
         links {
             "glad",
@@ -64,7 +66,7 @@ workspace "spectra"
 		defines {
 			"SP_USE_F64",
             -- "SP_ENALBE_INTERPOLATION",
-            "SP_NO_CONSOLE",
+            -- "SP_NO_CONSOLE",
 			"IMGUI_USER_CONFIG=\"ImGuiConfig.h\""
 		}
 
